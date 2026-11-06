@@ -77,28 +77,16 @@ const LEVELS = [
       ['spike', 4.5], ['spike', 5.5], ['spike', 6.5], ['spike', 7.5], ['pit', 9.3, 1.4], ['ceil', 11.4, 1.6], ['spike', 14.5]], goal: 17}
   ]}
 ,
-  {id: 'l3', name: 'Neon Drift', bpm: 112, tempo: [[0, 112, 'synth'], [48, 150, 'drive'], [96, 112, 'synth']], spec: [
+  {id: 'l3', name: 'Neon Drift', bpm: 112, tempo: [[0, 112, 'synth'], [48, 150, 'drive'], [96, 180, 'drive']], spec: [
     {run: 16, pump: [0, 8], hint: '112 BPM — synthwave, take it easy', obs: [['spike', 8.5], ['spike', 10.5], ['spike', 12.5]]},
     {run: 16, hint: 'slide · hold', obs: [['ceil', 2.4, 2.6], ['spike', 7.5], ['pit', 9.3, 1.4], ['spike', 12.5]]},
     {climb: 8, div: 2, hint: 'double-time climb'},
     {run: 12, hint: 'the tempo is about to change…', obs: [['spike', 1.5], ['block', 3.5, 2, 1], ['spike', 8.5]]},
     {run: 16, pump: [0, 4], hint: 'DRIVE — 150 BPM', obs: [['spike', 5.5], ['spike', 6.5], ['spike', 7.5], ['pit', 9.2, 0.6], ['ceil', 11.4, 1.6], ['spike', 14.5]]},
     {climb: 6, div: 1, hint: 'climb at 150'},
-    {run: 26, hint: 'hold the line', obs: [['spike', 1.5], ['spike', 2.5], ['block', 4.5, 2, 1], ['pit', 8.3, 1.4], ['spike', 11.5],
+    {run: 26, hint: 'hold the line — it gets faster…', obs: [['spike', 1.5], ['spike', 2.5], ['block', 4.5, 2, 1], ['pit', 8.3, 1.4], ['spike', 11.5],
       ['ceil', 13.4, 1.6], ['spike', 17.5], ['spike', 18.5], ['pit', 20.2, 0.6]]},
-    {run: 20, pump: [0, 4], hint: 'cool down — back to 112', obs: [['spike', 4.5], ['spike', 6.5], ['pit', 8.3, 1.4], ['spike', 12.5]], goal: 16}
-  ]},
-  {id: 'l4', name: 'Breakbeat', bpm: 164, tempo: [[0, 164, 'dnb'], [64, 82, 'half'], [96, 164, 'dnb']], spec: [
-    {run: 16, pump: [0, 8], hint: '164 BPM — drum & bass', obs: [['spike', 8.5], ['spike', 10.5], ['spike', 12.5], ['spike', 13.5]]},
-    {climb: 8, div: 2, hint: 'DOUBLE TIME at 164 — fast!'},
-    {run: 16, obs: [['ceil', 1.4, 1.6], ['spike', 4.5], ['spike', 5.5], ['pit', 7.3, 1.4], ['spike', 10.5], ['block', 12.5, 2, 1]]},
-    {run: 16, obs: [['spike', 1.5], ['spike', 2.5], ['spike', 3.5], ['pit', 5.2, 0.6], ['ceil', 7.4, 1.6], ['spike', 10.5], ['pit', 12.3, 1.4]]},
-    {run: 12, hint: 'the beat is about to drop to HALF TIME…', obs: [['spike', 2.5], ['spike', 4.5]]},
-    {run: 16, pump: [0, 4], hint: 'HALF TIME — 82 BPM, heavy', obs: [['spike', 4.5], ['block', 6.5, 2, 1], ['pit', 10.3, 1.4], ['ceil', 13.4, 1.6]]},
-    {climb: 6, div: 2, hint: 'double time at 82 = 164 again'},
-    {run: 13, obs: [['spike', 1.5], ['spike', 3.5], ['spike', 5.5]]},
-    {run: 24, pump: [0, 4], hint: 'BACK TO 164!', obs: [['spike', 4.5], ['spike', 5.5], ['spike', 6.5], ['spike', 7.5], ['pit', 9.3, 1.4],
-      ['ceil', 12.4, 1.6], ['spike', 15.5], ['block', 17.5, 2, 1]], goal: 22}
+    {run: 20, pump: [0, 4], hint: 'OVERDRIVE — 180 BPM', obs: [['spike', 4.5], ['spike', 6.5], ['pit', 8.3, 1.4], ['spike', 12.5]], goal: 16}
   ]}
 ];
 let levelIdx = 0, CH = CHORDS.ecgd, curLevel = null;
@@ -333,7 +321,10 @@ function onPress(zone, t) {
   if (mode === 'dead' || mode === 'countin') return; // no free combo while waiting to respawn
   const j = judgeTime(t, mode === 'climb' && climb ? climb.s.div : 1);
   applyJudge(j);
-  if (mode === 'climb') { if (zone === 'jump') tryKick(j); return; }
+  if (mode === 'climb') { // every tap on a wall climb must be a kick — early, off-beat or spam taps are fatal
+    if (!tryKick(j)) die(j.grade === 'OFF' ? (j.d < 0 ? 'Too early — tap when the bubble closes' : 'Off the beat') : 'Spam! One tap per bubble');
+    return;
+  }
   if (zone === 'jump') { if (p.onGround || p.coyote > 0) doJump(); else p.buffer = 0.12; }
   else if (!p.onGround) p.vy = Math.max(p.vy, SLAM); // slam
 }
@@ -673,14 +664,16 @@ function kickTarget(s, i) {
   return {x: i % 2 === 0 ? s.x0 + SHAFT - PW : s.x0, y: s.gy - (i + 1) * RISE - PH};
 }
 function tryKick(j) {
-  const c = climb; if (!c || c.i >= c.s.K) return;
+  const c = climb; if (!c || c.i >= c.s.K) return true; // climb finished: taps during the exit are harmless
   if (j.grade !== 'OFF' && Math.abs(j.beat - (c.s.b0 + c.i / c.s.div)) < 1e-6) {
     const tg = kickTarget(c.s, c.i);
     c.anim = {fx: p.x, fy: p.y, x: tg.x, y: tg.y, t0: clock(), dur: 0.4 * B / c.s.div};
     hitFx.push({x: tg.x + PW / 2, y: tg.y + PH / 2, age: 0, col: j.grade === 'PERFECT' ? '#4df3ff' : '#7dff9a'});
     c.i++; sfx(440 * Math.pow(2, c.i / 12), 0.07, 0.05);
     burst(p.x + PW / 2, p.y + PH / 2, 8, '#4df3ff', 160);
+    return true;
   }
+  return false;
 }
 function climbStep(dt) {
   const c = climb;
