@@ -26,6 +26,17 @@ function setTempo(bpm) {
   G = 2913 / (k * k); GH = 650 / (k * k); V0 = 683 / k; MAXFALL = 1800 / k; SLAM = 1300 / k; COMMIT = 0.12 * k;
 }
 setTempo(128);
+// TEMPO MAP (osu-style timing points): [[beat, bpm, musicStyle], ...] — the level is written in beats,
+// time ↔ beat conversion goes through this map, so the song can speed up / slow down mid-level.
+let TMAP = [{b: 0, t: 0, bpm: 128, style: 'house'}];
+function setTempoMap(pts) {
+  TMAP = []; let t = 0, pb = pts[0][0], pbpm = pts[0][1];
+  for (const [b, bpm, style] of pts) { t += (b - pb) * 60 / pbpm; TMAP.push({b, t, bpm, style: style || (TMAP.length ? TMAP[TMAP.length - 1].style : 'house')}); pb = b; pbpm = bpm; }
+}
+function tpAtBeat(b) { let r = TMAP[0]; for (const q of TMAP) if (b >= q.b) r = q; return r; }
+function tpAtTime(t) { let r = TMAP[0]; for (const q of TMAP) if (t >= q.t) r = q; return r; }
+const timeAt = b => { const q = tpAtBeat(b); return q.t + (b - q.b) * 60 / q.bpm; };
+const beatAt = t => { const q = tpAtTime(t); return q.b + (t - q.t) * q.bpm / 60; };
 const PW = 30, PH = 36, PHS = 16;
 const RISE = 60, SHAFT = 150;
 const WIN_P = 0.06, WIN_G = 0.12;                   // PERFECT ±60ms, GOOD ±120ms
@@ -33,6 +44,14 @@ const WIN_P = 0.06, WIN_G = 0.12;                   // PERFECT ±60ms, GOOD ±12
 // ================= LEVEL (written in beats) =================
 // spike at k.5 → jump on beat k · block → jump on k · pit ≤0.8 → tap, >1 → HOLD · ceil → SLIDE on k
 const CHORDS = {
+  dmbbfc: [{root: 146.83, pad: [293.66, 349.23, 440], arp: [587.33, 698.46, 880, 1174.66]},
+           {root: 116.54, pad: [233.08, 293.66, 349.23], arp: [466.16, 587.33, 698.46, 932.33]},
+           {root: 87.31, pad: [174.61, 220, 261.63], arp: [349.23, 440, 523.25, 698.46]},
+           {root: 130.81, pad: [261.63, 329.63, 392], arp: [523.25, 659.25, 783.99, 1046.5]}],
+  fmdbabeb: [{root: 87.31, pad: [174.61, 207.65, 261.63], arp: [349.23, 415.3, 523.25, 698.46]},
+             {root: 138.59, pad: [277.18, 349.23, 415.3], arp: [554.37, 698.46, 830.61, 1108.73]},
+             {root: 103.83, pad: [207.65, 261.63, 311.13], arp: [415.3, 523.25, 622.25, 830.61]},
+             {root: 155.56, pad: [311.13, 392, 466.16], arp: [622.25, 783.99, 932.33, 1244.51]}],
   amfcg: [{root: 110, pad: [220, 261.63, 329.63], arp: [440, 523.25, 659.25, 880]},
           {root: 87.31, pad: [174.61, 220, 261.63], arp: [349.23, 440, 523.25, 698.46]},
           {root: 130.81, pad: [261.63, 329.63, 392], arp: [523.25, 659.25, 783.99, 1046.5]},
@@ -44,7 +63,7 @@ const CHORDS = {
 };
 // climb: {climb: kicks, div: 1 = one kick per beat, 2 = DOUBLE TIME (two per beat)}
 const LEVELS = [
-  {id: 'l2', name: 'Double Time', bpm: 140, chords: 'ecgd', spec: [
+  {id: 'l2', name: 'Double Time', bpm: 140, chords: 'ecgd', tempo: [[0, 140, 'house']], spec: [
     {run: 16, pump: [0, 8], hint: 'TAP ON THE BEAT — hop to build FLOW', obs: [
       ['spike', 8.5], ['spike', 9.5], ['spike', 11.5], ['block', 12.5, 2, 1]]},
     {climb: 8, div: 2, hint: 'DOUBLE TIME — two kicks per beat'},
@@ -56,6 +75,30 @@ const LEVELS = [
     {climb: 12, div: 2, hint: 'LONG DOUBLE CLIMB'},
     {run: 20, pump: [0, 4], hint: 'finale', obs: [
       ['spike', 4.5], ['spike', 5.5], ['spike', 6.5], ['spike', 7.5], ['pit', 9.3, 1.4], ['ceil', 11.4, 1.6], ['spike', 14.5]], goal: 17}
+  ]}
+,
+  {id: 'l3', name: 'Neon Drift', bpm: 112, tempo: [[0, 112, 'synth'], [48, 150, 'drive'], [96, 112, 'synth']], spec: [
+    {run: 16, pump: [0, 8], hint: '112 BPM — synthwave, take it easy', obs: [['spike', 8.5], ['spike', 10.5], ['spike', 12.5]]},
+    {run: 16, hint: 'slide · hold', obs: [['ceil', 2.4, 2.6], ['spike', 7.5], ['pit', 9.3, 1.4], ['spike', 12.5]]},
+    {climb: 8, div: 2, hint: 'double-time climb'},
+    {run: 12, hint: 'the tempo is about to change…', obs: [['spike', 1.5], ['block', 3.5, 2, 1], ['spike', 8.5]]},
+    {run: 16, pump: [0, 4], hint: 'DRIVE — 150 BPM', obs: [['spike', 5.5], ['spike', 6.5], ['spike', 7.5], ['pit', 9.2, 0.6], ['ceil', 11.4, 1.6], ['spike', 14.5]]},
+    {climb: 6, div: 1, hint: 'climb at 150'},
+    {run: 26, hint: 'hold the line', obs: [['spike', 1.5], ['spike', 2.5], ['block', 4.5, 2, 1], ['pit', 8.3, 1.4], ['spike', 11.5],
+      ['ceil', 13.4, 1.6], ['spike', 17.5], ['spike', 18.5], ['pit', 20.2, 0.6]]},
+    {run: 20, pump: [0, 4], hint: 'cool down — back to 112', obs: [['spike', 4.5], ['spike', 6.5], ['pit', 8.3, 1.4], ['spike', 12.5]], goal: 16}
+  ]},
+  {id: 'l4', name: 'Breakbeat', bpm: 164, tempo: [[0, 164, 'dnb'], [64, 82, 'half'], [96, 164, 'dnb']], spec: [
+    {run: 16, pump: [0, 8], hint: '164 BPM — drum & bass', obs: [['spike', 8.5], ['spike', 10.5], ['spike', 12.5], ['spike', 13.5]]},
+    {climb: 8, div: 2, hint: 'DOUBLE TIME at 164 — fast!'},
+    {run: 16, obs: [['ceil', 1.4, 1.6], ['spike', 4.5], ['spike', 5.5], ['pit', 7.3, 1.4], ['spike', 10.5], ['block', 12.5, 2, 1]]},
+    {run: 16, obs: [['spike', 1.5], ['spike', 2.5], ['spike', 3.5], ['pit', 5.2, 0.6], ['ceil', 7.4, 1.6], ['spike', 10.5], ['pit', 12.3, 1.4]]},
+    {run: 12, hint: 'the beat is about to drop to HALF TIME…', obs: [['spike', 2.5], ['spike', 4.5]]},
+    {run: 16, pump: [0, 4], hint: 'HALF TIME — 82 BPM, heavy', obs: [['spike', 4.5], ['block', 6.5, 2, 1], ['pit', 10.3, 1.4], ['ceil', 13.4, 1.6]]},
+    {climb: 6, div: 2, hint: 'double time at 82 = 164 again'},
+    {run: 13, obs: [['spike', 1.5], ['spike', 3.5], ['spike', 5.5]]},
+    {run: 24, pump: [0, 4], hint: 'BACK TO 164!', obs: [['spike', 4.5], ['spike', 5.5], ['spike', 6.5], ['spike', 7.5], ['pit', 9.3, 1.4],
+      ['ceil', 12.4, 1.6], ['spike', 15.5], ['block', 17.5, 2, 1]], goal: 22}
   ]}
 ];
 let levelIdx = 0, CH = CHORDS.ecgd, curLevel = null;
@@ -70,7 +113,7 @@ const solids = [], spikes = [], hints = [], segs = [], walls = [];
 let goalX = 0;
 function build(L) {
   solids.length = spikes.length = hints.length = segs.length = walls.length = 0;
-  curLevel = L; setTempo(L.bpm); if (L.chords) CH = CHORDS[L.chords];
+  curLevel = L; setTempoMap(L.tempo || [[0, L.bpm, L.style || 'house']]); setTempo(TMAP[0].bpm); if (L.chords) CH = CHORDS[L.chords];
   let x = 0, gy = 420, b = 0;
   solids.push({x: -4000, y: gy, w: 4000, h: 2000, k: 'ground'});
   for (const s of L.spec) {
@@ -136,11 +179,11 @@ function startMusic(atBeat) {
   master = null;
   if (songSrc) { try { songSrc.stop(); } catch (e) {} songSrc = null; }
   if (ac) { master = ac.createGain(); master.gain.value = 0.8; master.connect(comp); }
-  songStart = clock() + 0.12 - atBeat * B;
+  songStart = clock() + 0.12 - timeAt(atBeat);
   nextBeat = Math.ceil(atBeat - 0.001);
   // imported song: buffer position = t0 + songTime
   if (ac && curLevel && curLevel.buffer) {
-    const L = curLevel, st = Math.max(atBeat * B, -L.t0);
+    const L = curLevel, st = Math.max(timeAt(atBeat), -L.t0);
     songFilter = ac.createBiquadFilter(); songFilter.type = 'lowpass';
     songFilter.frequency.value = calibMode || previewMode ? 20000 : 900;
     songSrc = ac.createBufferSource(); songSrc.buffer = L.buffer;
@@ -154,8 +197,8 @@ function stopMusic() {
 }
 function pumpScheduler() {
   if (!ac || !master) return;
-  while (songStart + nextBeat * B < ac.currentTime + 0.2) {
-    const t = songStart + nextBeat * B;
+  while (songStart + timeAt(nextBeat) < ac.currentTime + 0.2) {
+    const t = songStart + timeAt(nextBeat);
     if (t >= ac.currentTime - 0.01) { try { scheduleBeat(nextBeat, t); } catch (e) {} }
     nextBeat++;
   }
@@ -185,10 +228,11 @@ function bass(f, t, dur) {
   fl.frequency.setValueAtTime(1400, t); fl.frequency.exponentialRampToValueAtTime(300, t + dur);
   env(g, t, 0.005, 0.16, dur); o.connect(fl); fl.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
 }
-function pad(fs, t, dur) {
+function snare(t) { noise(t, 0.18, 0.3, 'bandpass', 1900); osc('triangle', 190, t, 0.08, 0.12); }
+function pad(fs, t, dur, wave = 'triangle') {
   for (const f of fs) {
-    const o = ac.createOscillator(), g = ac.createGain(); o.type = 'triangle'; o.frequency.value = f;
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.035, t + 0.3); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    const o = ac.createOscillator(), g = ac.createGain(); o.type = wave; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(wave === 'sawtooth' ? 0.018 : 0.035, t + 0.3); g.gain.linearRampToValueAtTime(0.0001, t + dur);
     o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
   }
 }
@@ -197,20 +241,43 @@ const CH_UNUSED = [ // (old) Am F C G
   {root: 87.31, pad: [174.61, 220, 261.63], arp: [349.23, 440, 523.25, 698.46]},
   {root: 130.81, pad: [261.63, 329.63, 392], arp: [523.25, 659.25, 783.99, 1046.5]},
   {root: 98, pad: [196, 246.94, 293.66], arp: [392, 493.88, 587.33, 783.99]}];
+// Music styles: 16-step bar patterns. Layers unlock with FLOW: kick (always) · snare >12 · hats >30 · 16th hats >60 · bass >45 · lead >75 · overdrive >=90
+const STYLES = {
+  house: {chords: 'ecgd', kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..x...x...x...x.', hat2: 'x.x.x.x.x.x.x.x.',
+          bass: 'R.O.R.O.R.O.R.F.', arp: 'xxxxxxxxxxxxxxxx', lead: 'square', pad: 'triangle'},
+  synth: {chords: 'dmbbfc', kick: 'x...x...x...x...', snare: '....x.......x...', snareType: 'snare', hat: '..x...x...x...x.', hat2: null,
+          bass: 'R.R.R.R.R.R.R.O.', arp: 'x.x.x.x.x.x.x.x.', lead: 'sawtooth', pad: 'sawtooth', bassLen: 1.6},
+  drive: {chords: 'dmbbfc', kick: 'x...x...x...x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', hat2: 'xxxxxxxxxxxxxxxx',
+          bass: 'R.RRO.RRR.RRF.RR', arp: 'xxxxxxxxxxxxxxxx', lead: 'square', pad: 'sawtooth', bassLen: 0.9},
+  dnb:   {chords: 'fmdbabeb', kick: 'x.........x.....', snare: '....x.......x...', snareType: 'snare', hat: 'x.x.x.x.x.x.x.x.', hat2: 'xxxxxxxxxxxxxxxx',
+          bass: 'L.........R.....', arp: 'x...x.x...x...x.', lead: 'square', pad: 'triangle', tick: true},
+  half:  {chords: 'fmdbabeb', kick: 'x.....x.........', snare: '........x.......', snareType: 'snare', hat: 'x...x...x...x...', hat2: 'x.x.x.x.x.x.x.x.',
+          bass: 'L.......L.......', arp: '..x...x...x...x.', lead: 'triangle', pad: 'sawtooth', tick: true}
+};
+let arpI = 0;
 function scheduleBeat(n, t) {
   if (curLevel && curLevel.buffer && !calibMode) { // imported song: only an optional click track
     if (previewMode || settings.metro) osc('square', ((n % 4) + 4) % 4 === 0 ? 2000 : 1400, t, 0.02, 0.07);
     return;
   }
-  kick(t); if (calibMode) return;
-  const bar = Math.floor(n / 4), ib = ((n % 4) + 4) % 4, c = CH[((bar % 4) + 4) % 4];
-  if (ib === 0) pad(c.pad, t, 4 * B);
-  if (flow > 12 && (ib === 1 || ib === 3)) clap(t);
-  if (flow > 30) { hat(t + B / 2); if (flow > 60) { hat(t + B / 4, 0.5); hat(t + 3 * B / 4, 0.5); } }
-  if (flow > 45) { bass(c.root, t, B * 0.45); bass(c.root * (ib === 3 ? 1.5 : 2), t + B / 2, B * 0.45); }
-  if (flow > 75) for (let k = 0; k < 4; k++) {
-    osc('square', c.arp[(k + ib) % 4], t + k * B / 4, B / 4 * 0.8, 0.045);
-    if (flow >= 90) osc('square', c.arp[(k + ib + 2) % 4] * 2, t + k * B / 4, B / 4 * 0.6, 0.02);
+  if (calibMode) { kick(t); return; }
+  const tp = tpAtBeat(n), st = STYLES[tp.style] || STYLES.house, Bn = 60 / tp.bpm;
+  const chs = CHORDS[st.chords], bar = Math.floor(n / 4), ib = ((n % 4) + 4) % 4, c = chs[((bar % chs.length) + chs.length) % chs.length];
+  if (ib === 0) pad(c.pad, t, 4 * Bn, st.pad);
+  if (st.tick && flow <= 30) osc('square', ib === 0 ? 1800 : 1300, t, 0.012, 0.05); // keeps the beat audible on sparse breakbeats
+  for (let k = 0; k < 4; k++) {
+    const step = ib * 4 + k, tt = t + k * Bn / 4;
+    if (st.kick[step] === 'x') kick(tt);
+    if (flow > 12 && st.snare[step] === 'x') (st.snareType === 'snare' ? snare(tt) : clap(tt));
+    if (flow > 30 && st.hat[step] === 'x') hat(tt);
+    if (flow > 60 && st.hat2 && st.hat2[step] === 'x' && st.hat[step] !== 'x') hat(tt, 0.45);
+    const bc = st.bass[step];
+    if (flow > 45 && bc !== '.') bass(bc === 'O' ? c.root * 2 : bc === 'F' ? c.root * 1.5 : c.root, tt, bc === 'L' ? Bn * 2 : Bn / 4 * (st.bassLen || 1.8));
+    if (flow > 75 && st.arp[step] === 'x') {
+      const f = c.arp[(arpI++) % 4];
+      osc(st.lead, f, tt, Bn / 4 * 0.8, st.lead === 'sawtooth' ? 0.03 : 0.045);
+      if (flow >= 90) osc(st.lead, f * 2, tt, Bn / 4 * 0.6, 0.018);
+    }
   }
 }
 function sfx(f, d = 0.06, v = 0.06) { if (ac && master) try { osc('square', f, ac.currentTime, d, v); } catch (e) {} }
@@ -227,7 +294,7 @@ resetStats();
 
 function startGame() { state = 'play'; resetStats(); respawnAt(0); }
 function respawnAt(i) {
-  const s = segs[i]; cp = i; cpBeat = s.b0; mode = 'countin'; climb = null;
+  const s = segs[i]; cp = i; cpBeat = s.b0; mode = 'countin'; climb = null; setTempo(tpAtBeat(s.b0).bpm);
   p = newPlayer();
   if (s.type === 'run') { p.x = s.x0; p.y = s.gy - PH; } else { p.x = s.x0 - PW - 6; p.y = s.gy - PH; }
   camX = p.x - 300; camY = (s.type === 'run' ? s.gy : s.gy) - 420; trail = [];
@@ -246,8 +313,8 @@ function die(reason) {
 
 // ================= JUDGEMENT =================
 function judgeTime(t, div = 1) {
-  const u = B / div, nb = Math.round(t / u), d = t - nb * u, a = Math.abs(d);
-  return {beat: nb / div, d, grade: a <= WIN_P ? 'PERFECT' : a <= WIN_G ? 'GOOD' : 'OFF'};
+  const nb = Math.round(beatAt(t) * div) / div, d = t - timeAt(nb), a = Math.abs(d);
+  return {beat: nb, d, grade: a <= WIN_P ? 'PERFECT' : a <= WIN_G ? 'GOOD' : 'OFF'};
 }
 function applyJudge(j) {
   stats[j.grade]++;
@@ -364,8 +431,8 @@ function optionsTap(x, y) {
 function startCalib() { const keep = curLevel; if (keep && keep.buffer) build(LEVELS[0]); state = 'calib'; calibMode = true; calTaps = []; flow = 0; calibReturn = keep; startMusic(-2); }
 let calibReturn = null;
 function calibTap(traw) {
-  const nb = Math.round(traw / B); if (nb < 0) return;
-  calTaps.push(traw - nb * B);
+  const nb = Math.round(beatAt(traw)); if (nb < 0) return;
+  calTaps.push(traw - timeAt(nb));
   if (calTaps.length >= 12) {
     const v = calTaps.slice(2).sort((a, b) => a - b);
     calib = Math.round(v[Math.floor(v.length / 2)] * 1000) / 1000; saveCalib();
@@ -600,7 +667,7 @@ function enterClimb(i) {
   if (p.sliding) setSlide(false);
   p.vy = 0;
 }
-const kickTime = (s, i) => (s.b0 + i / s.div) * B;
+const kickTime = (s, i) => timeAt(s.b0 + i / s.div);
 function kickTarget(s, i) {
   if (i === s.K - 1) return {x: s.x0 + SHAFT, y: s.gy1 - PH};
   return {x: i % 2 === 0 ? s.x0 + SHAFT - PW : s.x0, y: s.gy - (i + 1) * RISE - PH};
@@ -632,7 +699,8 @@ function climbStep(dt) {
 
 // ================= UPDATE =================
 function update(dt) {
-  const sb = songTime() / B;
+  const sb = beatAt(songTime());
+  { const tp = tpAtBeat(sb); if (tp.bpm !== BPM && (mode === 'climb' || (mode === 'run' && p.onGround))) setTempo(tp.bpm); } // physics follow the tempo map (switch only on the ground, so a jump keeps its arc)
   if (mode === 'countin') {
     const s = segs[cp];
     if (sb >= s.b0 - (s.type === 'climb' ? WIN_G / B : 0)) { jumpHeld = slideHeld = 0; keyHeld.clear(); ptr.forEach(q => q.dead = true); if (s.type === 'climb') enterClimb(cp); else mode = 'run'; } // holds from the count-in don't carry over
@@ -661,7 +729,7 @@ function button(r, label, col) {
 }
 const sky = Array.from({length: 60}, (_, i) => ({x: i * 90 + Math.random() * 60, h: 60 + Math.random() * 220, w: 40 + Math.random() * 50}));
 function draw(dt) {
-  const sb = (state === 'play' || state === 'calib' || previewMode) ? songTime() / B : performance.now() / 1000 / B;
+  const sb = (state === 'play' || state === 'calib' || previewMode) ? beatAt(songTime()) : performance.now() / 1000 / B;
   const ph = ((sb % 1) + 1) % 1, pulse = Math.max(0, 1 - ph * 3);
   const od = flow >= 90;
   const g = ctx.createLinearGradient(0, 0, 0, VH);
@@ -716,6 +784,13 @@ function draw(dt) {
     txt(h.k === 'slide' ? '▼' : h.k === 'hold' ? '▲▲' : '▲', h.x, h.gy + 50, c, h.k === 'pump' ? 14 : 20);
     if (h.k === 'hold') txt('HOLD', h.x, h.gy + 68, c, 11);
     if (h.k === 'slide') txt('SLIDE', h.x, h.gy + 68, c, 11);
+  }
+  // tempo-change markers on the floor
+  for (let i = 1; i < TMAP.length; i++) {
+    const q = TMAP[i], x = xOf(q.b); if (x < vx0 || x > vx1) continue;
+    const gyy = segs[segIndex(q.b)].gy, up = q.bpm > TMAP[i - 1].bpm;
+    ctx.fillStyle = up ? 'rgba(255,125,245,.25)' : 'rgba(125,200,255,.25)'; ctx.fillRect(x - 3, gyy - 300, 6, 300);
+    txt((up ? '▲ ' : '▼ ') + q.bpm + ' BPM', x, gyy - 310, up ? '#ff7df5' : '#7dc8ff', 16);
   }
   // spikes
   ctx.fillStyle = '#ff3d7f';
@@ -805,6 +880,15 @@ function drawHUD(sb, pulse) {
   // segment hint
   const s = segs[cp];
   if (s && s.hint && sb - s.b0 < 8 && mode !== 'dead') txt(s.hint, VW / 2, 150, '#ffd166', 18);
+  // upcoming tempo change
+  for (let i = 1; i < TMAP.length; i++) {
+    const q = TMAP[i], ahead = q.b - sb;
+    if (ahead > 0 && ahead <= 6 && mode !== 'dead' && mode !== 'countin') {
+      const up = q.bpm > TMAP[i - 1].bpm;
+      txt('TEMPO ' + (up ? 'UP ▲ ' : 'DOWN ▼ ') + q.bpm + ' BPM  in ' + Math.ceil(ahead), VW / 2, 190, up ? '#ff7df5' : '#7dc8ff', Math.round(22 + pulse * 6));
+    }
+  }
+  txt(BPM + ' BPM', 20, 92, '#8fa0c4', 11, 'left');
   // count-in
   if (mode === 'countin') {
     const n = Math.ceil(cpBeat - sb);
@@ -866,7 +950,7 @@ function drawMenu(pulse) {
     button(IB.dm, '◀1', '#cfd6e4'); button(IB.dp, '1▶', '#cfd6e4');
     txt('BAR START (shift by 1 beat)', VW / 2, 334, '#f2f5ff', 18);
     txt('high click = beat 1 of the bar — should land on the strongest downbeat', VW / 2, 352, '#8fa0c4', 11);
-    if (previewMode) { const ph = ((songTime() / B % 1) + 1) % 1; ctx.fillStyle = 'rgba(77,243,255,' + Math.max(0, 1 - ph * 4) + ')'; ctx.beginPath(); ctx.arc(VW / 2, 370, 8, 0, Math.PI * 2); ctx.fill(); }
+    if (previewMode) { const ph = ((beatAt(songTime()) % 1) + 1) % 1; ctx.fillStyle = 'rgba(77,243,255,' + Math.max(0, 1 - ph * 4) + ')'; ctx.beginPath(); ctx.arc(VW / 2, 370, 8, 0, Math.PI * 2); ctx.fill(); }
     button(IB.prev, previewMode ? '■ STOP PREVIEW' : '▶ PREVIEW + CLICKS', '#ffd166');
     button(IB.gen, 'GENERATE & PLAY', '#4df3ff');
     button(IB.back, 'BACK', '#cfd6e4');
@@ -904,7 +988,8 @@ function drawMenu(pulse) {
     ctx.strokeStyle = sel ? '#4df3ff' : 'rgba(207,214,228,.4)'; ctx.lineWidth = sel ? 3 : 1; ctx.strokeRect(r[0], r[1], r[2], r[3]);
     txt(String(i + 1), r[0] + r[2] / 2, r[1] + 58, sel ? '#4df3ff' : '#cfd6e4', 44);
     txt(L.name, r[0] + r[2] / 2, r[1] + 100, '#f2f5ff', 19);
-    txt(L.bpm + ' BPM' + (L.buffer ? '  ·  imported' : ''), r[0] + r[2] / 2, r[1] + 128, '#8fa0c4', 13);
+    const bp = [...new Set((L.tempo || [[0, L.bpm]]).map(q => q[1]))].join(' → ');
+    txt(bp + ' BPM' + (L.buffer ? '  ·  imported' : ''), r[0] + r[2] / 2, r[1] + 128, '#8fa0c4', 13);
     txt(bestScores[L.id] ? 'best ' + bestScores[L.id] : 'not cleared yet', r[0] + r[2] / 2, r[1] + 152, bestScores[L.id] ? '#ffd166' : 'rgba(143,160,196,.6)', 12);
     txt('▶ TAP TO PLAY', r[0] + r[2] / 2, r[1] + 184, '#4df3ff', 13);
   });
